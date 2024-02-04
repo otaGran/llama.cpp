@@ -159,6 +159,13 @@ extern "C" {
         llama_pos    all_pos_0;  // used if pos == NULL
         llama_pos    all_pos_1;  // used if pos == NULL
         llama_seq_id all_seq_id; // used if seq_id == NULL
+
+
+        int32_t       *  n_fedbbt_token_ID;
+        llama_token  ** fedbbt_token_ID_ptr;
+        int32_t       *  n_fedbbt_soft_prompt;
+        float        ** fedbbt_soft_prompt_ptr;
+
     } llama_batch;
 
     enum llama_model_kv_override_type {

@@ -143,6 +143,7 @@ struct llama_client_slot
     bool fedbbt = false;
     std::vector<float> last_logits;
     std::vector<llama_token> token_ID;
+    std::vector<float> soft_prompt;
     int id;
     int task_id = -1;
 
@@ -237,6 +238,7 @@ struct llama_client_slot
 
         images.clear();
         token_ID.clear();
+        soft_prompt.clear();
     }
 
     bool has_budget(gpt_params &global_params) {
@@ -578,7 +580,29 @@ struct llama_server_context
             if(slot->fedbbt) {
                 //Check if key "fedbbt_token_ID" exist in POST body
                 assert(data.find("fedbbt_token_ID") != data.end());
+                //Check if key "fedbbt_soft_prompt" exist in POST body
+                assert(data.find("fedbbt_soft_prompt") != data.end());
+
                 size_t n_total_token = data["fedbbt_token_ID"].size();
+
+                size_t total_soft_prompt = data["fedbbt_soft_prompt"].size();
+                //Check if total size of "fedbbt_soft_prompt" can be divided by 32000,
+                // which means the size is integer multiple of the size of prompt(1 * 4096).
+                assert(total_soft_prompt % 4096 == 0);
+
+
+
+
+                size_t n_token_of_soft_prompt = total_soft_prompt/4096;
+
+
+                assert(n_token_of_soft_prompt <= n_total_token);
+                for (size_t i = 0; i < total_soft_prompt; ++i) {
+                    slot->soft_prompt.push_back(data["fedbbt_soft_prompt"][i]);
+                }
+
+
+
                 // Start with the first "me"
                 std::string fake_prompt = "me";
                 // Append " me" for each additional count, skip the BOS token.
@@ -1504,7 +1528,12 @@ struct llama_server_context
 
             // TODO: we always have to take into account the "system_tokens"
             //       this is not great and needs to be improved somehow
-            llama_batch_add(batch, slot.sampled, system_tokens.size() + slot_npast, { slot.id }, true);
+            if(slot.fedbbt){
+                llama_batch_addl_fedbbt(batch, slot.sampled, system_tokens.size() + slot_npast, {slot.id}, true, slot.token_ID, slot.soft_prompt);
+            }else {
+
+                llama_batch_add(batch, slot.sampled, system_tokens.size() + slot_npast, {slot.id}, true);
+            }
             slot.n_past += 1;
         }
 
@@ -1754,6 +1783,10 @@ struct llama_server_context
                 batch.seq_id   + i,
                 batch.logits   + i,
                 0, 0, 0, // unused
+                batch.n_fedbbt_token_ID + i,
+                batch.fedbbt_token_ID_ptr + i,
+                batch.n_fedbbt_soft_prompt + i,
+                batch.fedbbt_soft_prompt_ptr + i,
             };
 
             const int ret = llama_decode(ctx, batch_view);
