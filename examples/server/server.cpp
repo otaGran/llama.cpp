@@ -140,6 +140,7 @@ static json probs_vector_to_json(const llama_context *ctx, const std::vector<com
 
 struct llama_client_slot
 {
+    std::vector<float> last_logits;
     int id;
     int task_id = -1;
 
@@ -1113,6 +1114,17 @@ struct llama_server_context
             res.result_json["model"] = slot.oaicompat_model;
         }
 
+        if(true) {
+            json jArray = json::array();
+            json jRow = json::array();
+            for (int j = 0; j < 32000; ++j) {
+                jRow.push_back(slot.last_logits[j]);
+            }
+            jArray.push_back(jRow);
+            res.result_json["full_logits"] = jArray;
+
+        }
+
         queue_results.send(res);
     }
 
@@ -1723,6 +1735,8 @@ struct llama_server_context
                 }
 
                 completion_token_output result;
+                float * cur_full_logits = llama_get_logits_ith(ctx, slot.i_batch - i);
+                slot.last_logits.assign(cur_full_logits, cur_full_logits + 32000);
                 const llama_token id = llama_sampling_sample(slot.ctx_sampling, ctx, NULL, slot.i_batch - i);
 
                 llama_sampling_accept(slot.ctx_sampling, ctx, id, true);
@@ -1749,7 +1763,7 @@ struct llama_server_context
                     result.probs.push_back({cur_p.data[i].id, cur_p.data[i].p});
                 }
 
-                if (!process_token(result, slot))
+                if (!process_token(result, slot) || true)
                 {
                     slot.release();
                     slot.print_timings();
