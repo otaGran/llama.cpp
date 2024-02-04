@@ -188,6 +188,15 @@ void llama_batch_add(
     const std::vector<llama_seq_id> & seq_ids,
                                bool   logits);
 
+void llama_batch_addl_fedbbt(
+        struct llama_batch & batch,
+        llama_token   id,
+        llama_pos   pos,
+        const std::vector<llama_seq_id> & seq_ids,
+        bool   logits,
+        const std::vector<llama_token> & fedbbt_token_ID,
+        const std::vector<float> & fedbbt_soft_prompt);
+
 //
 // Vocab utils
 //

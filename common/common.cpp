@@ -1219,6 +1219,42 @@ void llama_batch_add(
     batch.n_tokens++;
 }
 
+void llama_batch_addl_fedbbt(
+        struct llama_batch & batch,
+        llama_token   id,
+        llama_pos   pos,
+        const std::vector<llama_seq_id> & seq_ids,
+        bool   logits,
+        const std::vector<llama_token> & fedbbt_token_ID,
+        const std::vector<float> & fedbbt_soft_prompt) {
+    batch.token   [batch.n_tokens] = id;
+    batch.pos     [batch.n_tokens] = pos;
+    batch.n_seq_id[batch.n_tokens] = seq_ids.size();
+    for (size_t i = 0; i < seq_ids.size(); ++i) {
+        batch.seq_id[batch.n_tokens][i] = seq_ids[i];
+    }
+    batch.logits  [batch.n_tokens] = logits;
+
+
+
+
+    batch.n_fedbbt_token_ID[batch.n_tokens] = fedbbt_token_ID.size();
+    for (size_t i = 0; i < fedbbt_token_ID.size(); ++i) {
+        batch.fedbbt_soft_prompt_ptr[batch.n_tokens][i] = fedbbt_token_ID[i];
+    }
+
+    batch.n_fedbbt_soft_prompt[batch.n_tokens] = fedbbt_soft_prompt.size();
+    for (size_t i = 0; i < fedbbt_soft_prompt.size(); ++i) {
+        batch.fedbbt_soft_prompt_ptr[batch.n_tokens][i] = fedbbt_soft_prompt[i];
+    }
+
+
+    batch.n_tokens++;
+
+}
+
+
+
 std::tuple<struct llama_model *, struct llama_context *> llama_init_from_gpt_params(gpt_params & params) {
     auto mparams = llama_model_params_from_gpt_params(params);
 

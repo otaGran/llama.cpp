@@ -11396,6 +11396,18 @@ struct llama_batch llama_batch_init(int32_t n_tokens_alloc, int32_t embd, int32_
 
     batch.logits   = (int8_t *)        malloc(sizeof(int8_t)         * n_tokens_alloc);
 
+
+    batch.n_fedbbt_soft_prompt = (int32_t *)       malloc(sizeof(int32_t)        * n_tokens_alloc);
+    batch.fedbbt_soft_prompt_ptr   = (float **) malloc(sizeof(float *) * (n_tokens_alloc + 1));
+    for (int i = 0; i < n_tokens_alloc; ++i) {
+        batch.fedbbt_soft_prompt_ptr[i] = (float *) malloc(sizeof(float) * 4096);
+    }
+
+    batch.n_fedbbt_token_ID = (int32_t *)       malloc(sizeof(int32_t)        * n_tokens_alloc);
+    batch.fedbbt_token_ID_ptr   = (llama_token **) malloc(sizeof(llama_token *) * (n_tokens_alloc + 1));
+    for (int i = 0; i < n_tokens_alloc; ++i) {
+        batch.fedbbt_token_ID_ptr[i] = (llama_token *) malloc(sizeof(llama_token) * 4096);
+    }
     return batch;
 }
 
@@ -11411,6 +11423,22 @@ void llama_batch_free(struct llama_batch batch) {
         free(batch.seq_id);
     }
     if (batch.logits)   free(batch.logits);
+
+    if(batch.n_fedbbt_soft_prompt) free(batch.n_fedbbt_soft_prompt);
+    if (batch.fedbbt_soft_prompt_ptr) {
+        for (int i = 0; batch.fedbbt_soft_prompt_ptr[i] != nullptr; ++i) {
+            free(batch.fedbbt_soft_prompt_ptr[i]);
+        }
+        free(batch.fedbbt_soft_prompt_ptr);
+    }
+
+    if(batch.n_fedbbt_token_ID) free(batch.n_fedbbt_soft_prompt);
+    if (batch.fedbbt_token_ID_ptr) {
+        for (int i = 0; batch.fedbbt_token_ID_ptr[i] != nullptr; ++i) {
+            free(batch.fedbbt_token_ID_ptr[i]);
+        }
+        free(batch.fedbbt_token_ID_ptr);
+    }
 }
 
 int32_t llama_decode(
