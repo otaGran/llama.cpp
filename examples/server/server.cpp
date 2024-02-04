@@ -1529,7 +1529,7 @@ struct llama_server_context
             // TODO: we always have to take into account the "system_tokens"
             //       this is not great and needs to be improved somehow
             if(slot.fedbbt){
-                llama_batch_addl_fedbbt(batch, slot.sampled, system_tokens.size() + slot_npast, {slot.id}, true, slot.token_ID, slot.soft_prompt);
+                llama_batch_add_fedbbt(batch, slot.sampled, system_tokens.size() + slot_npast, {slot.id}, true, slot.token_ID, slot.soft_prompt);
             }else {
 
                 llama_batch_add(batch, slot.sampled, system_tokens.size() + slot_npast, {slot.id}, true);
@@ -1711,7 +1711,16 @@ struct llama_server_context
                                 ga_i += ga_w/ga_n;
                             }
                         }
-                        llama_batch_add(batch, prefix_tokens[slot.n_past], system_tokens.size() + slot_npast, {slot.id }, false);
+                        if(slot.fedbbt) {
+
+                            assert( prefix_tokens.size() == slot.token_ID.size());
+                            llama_batch_add(batch, slot.token_ID[slot.n_past], system_tokens.size() + slot.n_past, {slot.id}, true);
+
+                        }
+                        else {
+                            llama_batch_add(batch, prefix_tokens[slot.n_past], system_tokens.size() + slot_npast,
+                                            {slot.id}, false);
+                        }
                         slot_npast++;
                     }
 

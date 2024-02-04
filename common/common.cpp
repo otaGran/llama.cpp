@@ -1243,7 +1243,7 @@ void llama_batch_add(
     batch.n_tokens++;
 }
 
-void llama_batch_addl_fedbbt(
+void llama_batch_add_fedbbt(
         struct llama_batch & batch,
         llama_token   id,
         llama_pos   pos,
