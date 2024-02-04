@@ -142,6 +142,7 @@ struct llama_client_slot
 {
     bool fedbbt = false;
     std::vector<float> last_logits;
+    std::vector<llama_token> token_ID;
     int id;
     int task_id = -1;
 
@@ -235,6 +236,7 @@ struct llama_client_slot
         }
 
         images.clear();
+        token_ID.clear();
     }
 
     bool has_budget(gpt_params &global_params) {
@@ -587,6 +589,13 @@ struct llama_server_context
 
                 jsonObj["prompt"] = fake_prompt;
                 slot->prompt = jsonObj["prompt"];
+
+
+
+                for (size_t i = 0; i < n_total_token; ++i) {
+                    slot->token_ID.push_back(data["fedbbt_token_ID"][i]);
+                }
+
 
             }else{
                 slot->prompt = data["prompt"];
