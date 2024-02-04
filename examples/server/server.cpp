@@ -566,7 +566,25 @@ struct llama_server_context
 
         if (data.count("prompt") != 0)
         {
-            slot->prompt = data["prompt"];
+
+            if(slot->fedbbt) {
+                //Check if key "fedbbt_token_ID" exist in POST body
+                assert(data.find("fedbbt_token_ID") != data.end());
+                size_t n_total_token = data["fedbbt_token_ID"].size();
+                // Start with the first "me"
+                std::string fake_prompt = "me";
+                // Append " me" for each additional count, skip the BOS token.
+                for (size_t i = 1; i < n_total_token - 1; ++i) {
+                    fake_prompt = "me " + fake_prompt;
+                }
+                json jsonObj;
+
+                jsonObj["prompt"] = fake_prompt;
+                slot->prompt = jsonObj["prompt"];
+
+            }else{
+                slot->prompt = data["prompt"];
+            }
         }
         else
         {
