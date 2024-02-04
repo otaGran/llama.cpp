@@ -1216,6 +1216,12 @@ void llama_batch_add(
     }
     batch.logits  [batch.n_tokens] = logits;
 
+
+    batch.n_fedbbt_token_ID[batch.n_tokens] = 0;
+
+
+    batch.n_fedbbt_soft_prompt[batch.n_tokens] = 0;
+
     batch.n_tokens++;
 }
 
