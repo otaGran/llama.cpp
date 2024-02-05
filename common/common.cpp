@@ -1235,10 +1235,8 @@ void llama_batch_add(
     batch.logits  [batch.n_tokens] = logits;
 
 
-    batch.n_fedbbt_token_ID[batch.n_tokens] = 0;
+    batch.soft_prompt[batch.n_tokens] = false;
 
-
-    batch.n_fedbbt_soft_prompt[batch.n_tokens] = 0;
 
     batch.n_tokens++;
 }
@@ -1249,8 +1247,8 @@ void llama_batch_add_fedbbt(
         llama_pos   pos,
         const std::vector<llama_seq_id> & seq_ids,
         bool   logits,
-        const std::vector<llama_token> & fedbbt_token_ID,
-        const std::vector<float> & fedbbt_soft_prompt) {
+        const std::vector<float> & fedbbt_soft_prompt,
+        bool soft_prompt) {
     batch.token   [batch.n_tokens] = id;
     batch.pos     [batch.n_tokens] = pos;
     batch.n_seq_id[batch.n_tokens] = seq_ids.size();
@@ -1260,16 +1258,15 @@ void llama_batch_add_fedbbt(
     batch.logits  [batch.n_tokens] = logits;
 
 
+    batch.soft_prompt[batch.n_tokens] = soft_prompt;
+    if(soft_prompt) {
+        assert(fedbbt_soft_prompt.size()%4096==0);
 
-
-    batch.n_fedbbt_token_ID[batch.n_tokens] = fedbbt_token_ID.size();
-    for (size_t i = 0; i < fedbbt_token_ID.size(); ++i) {
-        batch.fedbbt_soft_prompt_ptr[batch.n_tokens][i] = fedbbt_token_ID[i];
-    }
-
-    batch.n_fedbbt_soft_prompt[batch.n_tokens] = fedbbt_soft_prompt.size();
-    for (size_t i = 0; i < fedbbt_soft_prompt.size(); ++i) {
-        batch.fedbbt_soft_prompt_ptr[batch.n_tokens][i] = fedbbt_soft_prompt[i];
+        //Since we skip the BOS token, replace the embeddings from second token.
+        int soft_prompt_idx = batch.n_tokens -1;
+        for (size_t i = soft_prompt_idx * 4096; i < soft_prompt_idx * 4096 + 4096; ++i) {
+            batch.embd[i + 4096] = fedbbt_soft_prompt[i];
+        }
     }
 
 

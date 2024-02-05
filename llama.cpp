@@ -4811,24 +4811,11 @@ struct llm_build_context {
 
         struct ggml_tensor * cur;
         struct ggml_tensor * inpL;
-        struct ggml_tensor * tmp;
 
-        tmp = llm_build_inp_embd(ctx0, hparams, batch, model.tok_embd, lctx.inp_tokens, lctx.inp_embd, cb);
+
+        inpL = llm_build_inp_embd(ctx0, hparams, batch, model.tok_embd, lctx.inp_tokens, lctx.inp_embd, cb);
         cb(inpL, "inp_embd", -1);
 
-        //Check if atch.fedbbt_token_ID_ptr != nullptr, which the case that go through the load model
-        if(batch.fedbbt_token_ID_ptr != nullptr && *batch.n_fedbbt_soft_prompt != 0) {
-            int32_t n_fedbbt_soft_prompt =  *batch.n_fedbbt_soft_prompt;
-            struct ggml_tensor *febbbet_soft_prompt_tensor = ggml_new_tensor_2d(ctx0, GGML_TYPE_F32, 4096, n_fedbbt_soft_prompt);
-            ggml_set_name(febbbet_soft_prompt_tensor, "fedbbt_set_soft_prompt");
-            cb(febbbet_soft_prompt_tensor, "fedbbt_set_soft_prompt", -1);
-            // The "1" here is the offset when set the soft prompt to the original embeddings.
-            // In other words, "1" means set the soft_prompt right after the BOS token.
-            // And the soft prompt's length is controlled by the above febbbet_soft_prompt_tensor.
-            inpL = ggml_set_2d(ctx0, tmp, febbbet_soft_prompt_tensor,febbbet_soft_prompt_tensor->nb[1], 4096 * 1 * febbbet_soft_prompt_tensor->nb[0]);
-        }else{
-            inpL = tmp;
-        }
 
 
         // inp_pos - contains the positions
@@ -7043,22 +7030,41 @@ static struct ggml_cgraph * llama_build_graph(
     if (!ggml_tallocr_is_measure(lctx.alloc)) {
         if (batch.token) {
 
-//            if(batch.n_fedbbt_token_ID != 0) {
-//                const int64_t n_tokens = batch.n_fedbbt_token_ID;
-//
-//                ggml_backend_tensor_set(, batch.token, 0, n_tokens * ggml_element_size(lctx.inp_tokens));
-//            }else {
                 const int64_t n_tokens = batch.n_tokens;
 
                 ggml_backend_tensor_set(lctx.inp_tokens, batch.token, 0, n_tokens * ggml_element_size(lctx.inp_tokens));
-//            }
+
         }
 
         if (batch.embd) {
+            //
             const int64_t n_embd   = llm.n_embd;
-            const int64_t n_tokens = batch.n_tokens;
 
-            ggml_backend_tensor_set(lctx.inp_embd, batch.embd, 0, n_tokens*n_embd*ggml_element_size(lctx.inp_embd));
+            //Which means at least one embedding need to be replaced.
+            if(batch.soft_prompt) {
+                int count_soft_prompt = 0;
+                for(int i = 1;i<batch.n_tokens;i++) {
+                    if(batch.soft_prompt[i] == 1) {
+                        count_soft_prompt++;
+                    }
+                    else {
+                        break;
+                    }
+                }
+                if(count_soft_prompt != 0) {
+                    const int64_t n_tokens = count_soft_prompt;
+
+                    //Skip the first token
+                    ggml_backend_tensor_set(lctx.inp_embd, batch.embd, 1 * n_embd * ggml_element_size(lctx.inp_embd),
+                                            n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
+                }
+            }
+            else {
+                const int64_t n_tokens = batch.n_tokens;
+
+                ggml_backend_tensor_set(lctx.inp_embd, batch.embd, 0,
+                                        n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
+            }
         }
 
         if (batch.pos) {
@@ -7216,7 +7222,7 @@ static int llama_decode_internal(
     GGML_ASSERT(n_tokens <= n_batch);
 
     int n_threads = n_tokens == 1 ? cparams.n_threads : cparams.n_threads_batch;
-    GGML_ASSERT((!batch.token && batch.embd) || (batch.token && !batch.embd)); // NOLINT
+    //GGML_ASSERT((!batch.token && batch.embd) || (batch.token && !batch.embd)); // NOLINT
 
     const int64_t t_start_us = ggml_time_us();
 
@@ -11614,10 +11620,7 @@ struct llama_batch llama_batch_get_one(
         /*all_pos_0      =*/ pos_0,
         /*all_pos_1      =*/ 1,
         /*all_seq_id     =*/ seq_id,
-        /*n_fedbbt_token_ID     =*/                     nullptr,
-        /*fedbbt_token_ID_ptr    =*/                     nullptr,
-        /*n_fedbbt_soft_prompt     =*/                         nullptr,
-        /*fedbbt_soft_prompt_ptr     =*/nullptr
+        /*soft_prompt    =*/nullptr
     };
 }
 
@@ -11640,18 +11643,27 @@ struct llama_batch llama_batch_init(int32_t n_tokens_alloc, int32_t embd, int32_
 
     batch.logits   = (int8_t *)        malloc(sizeof(int8_t)         * n_tokens_alloc);
 
+    batch.soft_prompt   = (int8_t *)        malloc(sizeof(int8_t)         * n_tokens_alloc);
+    return batch;
+}
 
-    batch.n_fedbbt_soft_prompt = (int32_t *)       malloc(sizeof(int32_t)        * n_tokens_alloc);
-    batch.fedbbt_soft_prompt_ptr   = (float **) malloc(sizeof(float *) * (n_tokens_alloc + 1));
-    for (int i = 0; i < n_tokens_alloc; ++i) {
-        batch.fedbbt_soft_prompt_ptr[i] = (float *) malloc(sizeof(float) * 4096);
-    }
+struct llama_batch llama_batch_init_fedbbt(int32_t n_tokens_alloc, int32_t embd, int32_t n_seq_max) {
+    llama_batch batch = { 0, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, 0, 0, };
 
-    batch.n_fedbbt_token_ID = (int32_t *)       malloc(sizeof(int32_t)        * n_tokens_alloc);
-    batch.fedbbt_token_ID_ptr   = (llama_token **) malloc(sizeof(llama_token *) * (n_tokens_alloc + 1));
+    batch.embd = (float *) malloc(sizeof(float) * n_tokens_alloc * 4096);
+    batch.token = (llama_token *) malloc(sizeof(llama_token) * n_tokens_alloc);
+
+
+    batch.pos      = (llama_pos *)     malloc(sizeof(llama_pos)      * n_tokens_alloc);
+    batch.n_seq_id = (int32_t *)       malloc(sizeof(int32_t)        * n_tokens_alloc);
+    batch.seq_id   = (llama_seq_id **) malloc(sizeof(llama_seq_id *) * (n_tokens_alloc + 1));
     for (int i = 0; i < n_tokens_alloc; ++i) {
-        batch.fedbbt_token_ID_ptr[i] = (llama_token *) malloc(sizeof(llama_token) * 4096);
+        batch.seq_id[i] = (llama_seq_id *) malloc(sizeof(llama_seq_id) * n_seq_max);
     }
+    batch.seq_id[n_tokens_alloc] = nullptr;
+
+    batch.logits   = (int8_t *)        malloc(sizeof(int8_t)         * n_tokens_alloc);
+    batch.soft_prompt   = (int8_t *)        malloc(sizeof(int8_t)         * n_tokens_alloc);
     return batch;
 }
 
@@ -11667,22 +11679,7 @@ void llama_batch_free(struct llama_batch batch) {
         free(batch.seq_id);
     }
     if (batch.logits)   free(batch.logits);
-
-    if(batch.n_fedbbt_soft_prompt) free(batch.n_fedbbt_soft_prompt);
-    if (batch.fedbbt_soft_prompt_ptr) {
-        for (int i = 0; batch.fedbbt_soft_prompt_ptr[i] != nullptr; ++i) {
-            free(batch.fedbbt_soft_prompt_ptr[i]);
-        }
-        free(batch.fedbbt_soft_prompt_ptr);
-    }
-
-    if(batch.n_fedbbt_token_ID) free(batch.n_fedbbt_soft_prompt);
-    if (batch.fedbbt_token_ID_ptr) {
-        for (int i = 0; batch.fedbbt_token_ID_ptr[i] != nullptr; ++i) {
-            free(batch.fedbbt_token_ID_ptr[i]);
-        }
-        free(batch.fedbbt_token_ID_ptr);
-    }
+    if(batch.soft_prompt) free(batch.soft_prompt);
 }
 
 int32_t llama_decode(

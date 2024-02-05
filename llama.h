@@ -161,10 +161,7 @@ extern "C" {
         llama_seq_id all_seq_id; // used if seq_id == NULL
 
 
-        int32_t       *  n_fedbbt_token_ID;
-        llama_token  ** fedbbt_token_ID_ptr;
-        int32_t       *  n_fedbbt_soft_prompt;
-        float        ** fedbbt_soft_prompt_ptr;
+        int8_t       *  soft_prompt;
 
     } llama_batch;
 
@@ -599,6 +596,11 @@ extern "C" {
     // The rest of the llama_batch members are allocated with size n_tokens
     // All members are left uninitialized
     LLAMA_API struct llama_batch llama_batch_init(
+            int32_t n_tokens,
+            int32_t embd,
+            int32_t n_seq_max);
+
+    LLAMA_API struct llama_batch llama_batch_init_fedbbt(
             int32_t n_tokens,
             int32_t embd,
             int32_t n_seq_max);

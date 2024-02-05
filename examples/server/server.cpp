@@ -440,7 +440,9 @@ struct llama_server_context
         default_generation_settings_for_props = get_formated_generation(slots.front());
         default_generation_settings_for_props["seed"] = -1;
 
-        batch = llama_batch_init(n_ctx, 0, params.n_parallel);
+        //batch = llama_batch_init(n_ctx, 0, params.n_parallel);
+        //batch = llama_batch_init(n_ctx, 0, params.n_parallel);
+        batch = llama_batch_init_fedbbt(n_ctx, 0, params.n_parallel);
 
         // empty system prompt
         system_prompt = "";
@@ -1528,12 +1530,10 @@ struct llama_server_context
 
             // TODO: we always have to take into account the "system_tokens"
             //       this is not great and needs to be improved somehow
-            if(slot.fedbbt){
-                llama_batch_add_fedbbt(batch, slot.sampled, system_tokens.size() + slot_npast, {slot.id}, true, slot.token_ID, slot.soft_prompt);
-            }else {
 
-                llama_batch_add(batch, slot.sampled, system_tokens.size() + slot_npast, {slot.id}, true);
-            }
+
+            llama_batch_add(batch, slot.sampled, system_tokens.size() + slot_npast, {slot.id}, true);
+
             slot.n_past += 1;
         }
 
@@ -1714,7 +1714,14 @@ struct llama_server_context
                         if(slot.fedbbt) {
 
                             assert( prefix_tokens.size() == slot.token_ID.size());
-                            llama_batch_add(batch, slot.token_ID[slot.n_past], system_tokens.size() + slot.n_past, {slot.id}, true);
+
+                            //If we need to set the soft prompt on current position
+                            if(slot.n_past > 0 && slot.n_past < slot.soft_prompt.size()/4096 + 1){
+                                llama_batch_add_fedbbt(batch, slot.token_ID[slot.n_past], system_tokens.size() + slot.n_past, {slot.id}, false, slot.soft_prompt, true);
+                            }
+                            else{
+                                llama_batch_add(batch, slot.token_ID[slot.n_past], system_tokens.size() + slot.n_past, {slot.id}, false);
+                            }
 
                         }
                         else {
@@ -1786,16 +1793,13 @@ struct llama_server_context
             {
                 n_tokens,
                 batch.token    + i,
-                nullptr,
+                batch.embd     + i * 4096,
                 batch.pos      + i,
                 batch.n_seq_id + i,
                 batch.seq_id   + i,
                 batch.logits   + i,
                 0, 0, 0, // unused
-                batch.n_fedbbt_token_ID + i,
-                batch.fedbbt_token_ID_ptr + i,
-                batch.n_fedbbt_soft_prompt + i,
-                batch.fedbbt_soft_prompt_ptr + i,
+                batch.soft_prompt + i
             };
 
             const int ret = llama_decode(ctx, batch_view);
