@@ -7039,23 +7039,37 @@ static struct ggml_cgraph * llama_build_graph(
         if (batch.embd) {
             //
             const int64_t n_embd   = llm.n_embd;
-
+            bool sec = false;
             //Which means at least one embedding need to be replaced.
             if(batch.soft_prompt) {
                 int count_soft_prompt = 0;
+                int count_soft_prompt_offset = -1;
+                printf("batch.n_tokens: %d\n",batch.n_tokens);
                 for(int i = 1;i<batch.n_tokens;i++) {
                     if(batch.soft_prompt[i] == 1) {
                         count_soft_prompt++;
+                        if(count_soft_prompt_offset == -1)
+                            count_soft_prompt_offset = i;
+
                     }
                     else {
-                        break;
+                        if(count_soft_prompt != 0) {
+                            const int64_t n_tokens = count_soft_prompt;
+
+                            //Skip the first token
+                            ggml_backend_tensor_set(lctx.inp_embd, batch.embd, count_soft_prompt * n_embd * ggml_element_size(lctx.inp_embd),
+                                                    n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
+                        }
+                        count_soft_prompt = 0;
+                        count_soft_prompt_offset = -1;
+
                     }
                 }
                 if(count_soft_prompt != 0) {
                     const int64_t n_tokens = count_soft_prompt;
 
                     //Skip the first token
-                    ggml_backend_tensor_set(lctx.inp_embd, batch.embd, 1 * n_embd * ggml_element_size(lctx.inp_embd),
+                    ggml_backend_tensor_set(lctx.inp_embd, batch.embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
                                             n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
                 }
             }
@@ -11648,6 +11662,7 @@ struct llama_batch llama_batch_init(int32_t n_tokens_alloc, int32_t embd, int32_
 }
 
 struct llama_batch llama_batch_init_fedbbt(int32_t n_tokens_alloc, int32_t embd, int32_t n_seq_max) {
+    printf("batch.n_tokens_alloc: %d\n", n_tokens_alloc);
     llama_batch batch = { 0, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, 0, 0, 0, };
 
     batch.embd = (float *) malloc(sizeof(float) * n_tokens_alloc * 4096);
@@ -11664,6 +11679,9 @@ struct llama_batch llama_batch_init_fedbbt(int32_t n_tokens_alloc, int32_t embd,
 
     batch.logits   = (int8_t *)        malloc(sizeof(int8_t)         * n_tokens_alloc);
     batch.soft_prompt   = (int8_t *)        malloc(sizeof(int8_t)         * n_tokens_alloc);
+    for (int i = 0; i < n_tokens_alloc; ++i) {
+        batch.soft_prompt[i] = false;
+    }
     return batch;
 }
 
