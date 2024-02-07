@@ -6848,7 +6848,7 @@ static struct ggml_cgraph * llama_build_graph(
                             const int64_t n_tokens = count_soft_prompt;
 
                             //Skip the first token
-                            ggml_backend_tensor_set(lctx.inp_embd, batch.embd, count_soft_prompt * n_embd * ggml_element_size(lctx.inp_embd),
+                            ggml_backend_tensor_set(lctx.inp_embd, batch.embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
                                                     n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
                         }
                         count_soft_prompt = 0;
