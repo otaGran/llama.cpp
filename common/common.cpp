@@ -1259,15 +1259,15 @@ void llama_batch_add_fedbbt(
 
 
     batch.soft_prompt[batch.n_tokens] = soft_prompt;
-    if(soft_prompt) {
-        assert(fedbbt_soft_prompt.size()%4096==0);
-
-        //Since we skip the BOS token, replace the embeddings from second token.
-        int soft_prompt_idx = batch.n_tokens -1;
-        for (size_t i = soft_prompt_idx * 4096; i < soft_prompt_idx * 4096 + 4096; ++i) {
-            batch.embd[i + 4096] = fedbbt_soft_prompt[i];
-        }
-    }
+//    if(soft_prompt) {
+//        assert(fedbbt_soft_prompt.size()%4096==0);
+//
+//        //Since we skip the BOS token, replace the embeddings from second token.
+//        int soft_prompt_idx = batch.n_tokens -1;
+//        for (size_t i = soft_prompt_idx * 4096; i < soft_prompt_idx * 4096 + 4096; ++i) {
+//            batch.embd[i + 4096] = fedbbt_soft_prompt[i];
+//        }
+//    }
 
 
     batch.n_tokens++;
