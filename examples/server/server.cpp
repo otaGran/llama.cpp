@@ -1717,7 +1717,10 @@ struct llama_server_context
 
                             //If we need to set the soft prompt on current position
                             if(slot.n_past > 0 && slot.n_past < slot.soft_prompt.size()/4096 + 1){
-                                llama_batch_add_fedbbt(batch, slot.token_ID[slot.n_past], system_tokens.size() + slot.n_past, {slot.id}, false, slot.soft_prompt, true);
+                                int startIdx = (slot.n_past - 1) * 4096;
+                                std::vector<float> slicedVector(slot.soft_prompt.begin() + startIdx, slot.soft_prompt.begin() + startIdx + 4096);
+                                llama_batch_add_fedbbt(batch, slot.token_ID[slot.n_past], system_tokens.size() + slot.n_past, {slot.id}, false, slicedVector, true);
+                                delete(slicedVector);
                             }
                             else{
                                 llama_batch_add(batch, slot.token_ID[slot.n_past], system_tokens.size() + slot.n_past, {slot.id}, false);
