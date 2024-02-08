@@ -7036,7 +7036,7 @@ static struct ggml_cgraph * llama_build_graph(
 
         }
 
-        if (batch.embd) {
+        if (batch.embd || false) {
             //
             const int64_t n_embd   = llm.n_embd;
             bool sec = false;
