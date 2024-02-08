@@ -140,6 +140,7 @@ static json probs_vector_to_json(const llama_context *ctx, const std::vector<com
 
 struct llama_client_slot
 {
+    bool fedbbt = false;
     std::vector<float> last_logits;
     int id;
     int task_id = -1;
@@ -548,6 +549,7 @@ struct llama_server_context
         slot->params.seed               = json_value(data, "seed",              default_params.seed);
         slot->sparams.grammar           = json_value(data, "grammar",           default_sparams.grammar);
         slot->sparams.n_probs           = json_value(data, "n_probs",           default_sparams.n_probs);
+        slot->fedbbt                  = json_value(data, "fedbbt",            false);
 
         // infill
         if (data.count("input_prefix") != 0)
@@ -988,6 +990,11 @@ struct llama_server_context
         res.error = true;
         res.result_json = { { "content", error } };
         queue_results.send(res);
+    }
+
+    json get_model_props()
+    {
+        return get_formated_generation(slots[0]);
     }
 
     json get_formated_generation(llama_client_slot &slot)
@@ -1786,7 +1793,7 @@ struct llama_server_context
                     result.probs.push_back({cur_p.data[i].id, cur_p.data[i].p});
                 }
 
-                if (!process_token(result, slot) || true)
+                if (!process_token(result, slot) || slot.fedbbt)
                 {
                     slot.release();
                     slot.print_timings();
@@ -2902,6 +2909,12 @@ int main(int argc, char **argv)
 
                     res.set_chunked_content_provider("text/event-stream", chunked_content_provider, on_complete);
                 }
+            });
+
+    svr.Get("/model.json", [&llama](const httplib::Request &, httplib::Response &res)
+            {
+                const json data = llama.get_model_props();
+                return res.set_content(data.dump(), "application/json; charset=utf-8");
             });
 
     svr.Options(R"(/.*)", [](const httplib::Request &, httplib::Response &res)
