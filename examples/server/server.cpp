@@ -1720,7 +1720,7 @@ struct llama_server_context
                                 int startIdx = (slot.n_past - 1) * 4096;
                                 std::vector<float> slicedVector(slot.soft_prompt.begin() + startIdx, slot.soft_prompt.begin() + startIdx + 4096);
                                 llama_batch_add_fedbbt(batch, slot.token_ID[slot.n_past], system_tokens.size() + slot.n_past, {slot.id}, false, slicedVector, true);
-                                delete(slicedVector);
+
                             }
                             else{
                                 llama_batch_add(batch, slot.token_ID[slot.n_past], system_tokens.size() + slot.n_past, {slot.id}, false);
