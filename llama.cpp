@@ -4359,6 +4359,36 @@ static struct ggml_tensor * llm_build_inp_embd(
     return inpL;
 }
 
+
+static struct ggml_tensor * llm_build_inp_embd_fedbbt(
+        struct ggml_context * ctx,
+        const llama_hparams & hparams,
+        const llama_batch & batch,
+        struct ggml_tensor * tok_embd,
+        struct ggml_tensor * inp_tokens,
+        struct ggml_tensor * inp_embd,
+        const llm_build_cb & cb) {
+    const int64_t n_embd = hparams.n_embd;
+
+    struct ggml_tensor * inpL;
+    //ggml_set_f32(soft_prompt, 0.0f);
+
+
+    if (batch.token) {
+        struct ggml_tensor *inp_tokens_v = ggml_view_1d(ctx, inp_tokens, batch.n_tokens, 0);
+        cb(inp_tokens, "inp_tokens", -1);
+
+
+        inpL = ggml_get_rows(ctx, tok_embd, inp_tokens_v);
+
+        struct ggml_tensor *inp_embd_v = ggml_view_2d(ctx, inp_embd, n_embd, batch.n_tokens, inp_embd->nb[1], 0);
+        inpL = ggml_acc_inplace(ctx, inpL, inp_embd_v, inpL->nb[1], inpL->nb[2], inpL->nb[3], 0);
+
+    }
+
+    return inpL;
+}
+
 // Persimmon: n_rot = n_embd_head_k/2
 // Other:     n_rot = n_embd_head_k
 static void llm_build_k_shift(
@@ -4813,7 +4843,7 @@ struct llm_build_context {
         struct ggml_tensor * inpL;
 
 
-        inpL = llm_build_inp_embd(ctx0, hparams, batch, model.tok_embd, lctx.inp_tokens, lctx.inp_embd, cb);
+        inpL = llm_build_inp_embd_fedbbt(ctx0, hparams, batch, model.tok_embd, lctx.inp_tokens, lctx.inp_embd, cb);
         cb(inpL, "inp_embd", -1);
 
 
@@ -7039,63 +7069,12 @@ static struct ggml_cgraph * llama_build_graph(
         if (batch.embd) {
             //
             const int64_t n_embd   = llm.n_embd;
-            bool sec = false;
-            //Which means at least one embedding need to be replaced.
-            if(batch.soft_prompt) {
-                int count_soft_prompt = 0;
-                int count_soft_prompt_offset = -1;
-                printf("batch.n_tokens: %d\n",batch.n_tokens);
-                for(int i = 0;i<batch.n_tokens;i++) {
-                    if(batch.soft_prompt[i] == 1) {
-                        count_soft_prompt++;
-                        if(count_soft_prompt_offset == -1)
-                            count_soft_prompt_offset = i;
 
-                    }
-                    else {
-                        if(count_soft_prompt != 0) {
-                            const int64_t n_tokens = count_soft_prompt;
+            const int64_t n_tokens = batch.n_tokens;
 
-                            float ori_embd[4096 * count_soft_prompt];
-                            ggml_backend_tensor_get(lctx.inp_embd, ori_embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
-                                                    n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
+            ggml_backend_tensor_set(lctx.inp_embd, batch.embd, 0,
+                                    n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
 
-                            for(int i = 0; i < count_soft_prompt * 4096; ++i) {
-                                ori_embd[i] = ori_embd[i] + batch.embd[i];
-                            }
-                            //Skip the first token
-                            ggml_backend_tensor_set(lctx.inp_embd, ori_embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
-                                                    n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
-                        }
-                        count_soft_prompt = 0;
-                        count_soft_prompt_offset = -1;
-
-                    }
-                }
-                if(count_soft_prompt != 0) {
-                    const int64_t n_tokens = count_soft_prompt;
-                    float ori_embd[4096 * count_soft_prompt];
-                    ggml_backend_tensor_get(lctx.inp_embd, ori_embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
-                                            n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
-
-                    for(int i = 0; i < count_soft_prompt * 4096; ++i) {
-                        ori_embd[i] = ori_embd[i] + batch.embd[i];
-                    }
-                    //Skip the first token
-                    ggml_backend_tensor_set(lctx.inp_embd, ori_embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
-                                            n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
-//
-//                    //Skip the first token
-//                    ggml_backend_tensor_set(lctx.inp_embd, batch.embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
-//                                            n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
-                }
-            }
-            else {
-                const int64_t n_tokens = batch.n_tokens;
-
-                ggml_backend_tensor_set(lctx.inp_embd, batch.embd, 0,
-                                        n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
-            }
         }
 
         if (batch.pos) {

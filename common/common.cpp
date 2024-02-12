@@ -1236,7 +1236,11 @@ void llama_batch_add(
 
 
     batch.soft_prompt[batch.n_tokens] = false;
-
+    if(batch.embd) {
+        for (size_t i = 0; i < 4096; ++i) {
+            batch.embd[i + batch.n_tokens * 4096] = 0.0f;
+        }
+    }
 
     batch.n_tokens++;
 }
