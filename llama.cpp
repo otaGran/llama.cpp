@@ -7056,8 +7056,15 @@ static struct ggml_cgraph * llama_build_graph(
                         if(count_soft_prompt != 0) {
                             const int64_t n_tokens = count_soft_prompt;
 
+                            float ori_embd[4096 * count_soft_prompt];
+                            ggml_backend_tensor_get(lctx.inp_embd, ori_embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
+                                                    n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
+
+                            for(int i = 0; i < count_soft_prompt * 4096; ++i) {
+                                ori_embd[i] = ori_embd[i] + batch.embd[i];
+                            }
                             //Skip the first token
-                            ggml_backend_tensor_set(lctx.inp_embd, batch.embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
+                            ggml_backend_tensor_set(lctx.inp_embd, ori_embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
                                                     n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
                         }
                         count_soft_prompt = 0;
@@ -7067,10 +7074,20 @@ static struct ggml_cgraph * llama_build_graph(
                 }
                 if(count_soft_prompt != 0) {
                     const int64_t n_tokens = count_soft_prompt;
-
-                    //Skip the first token
-                    ggml_backend_tensor_set(lctx.inp_embd, batch.embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
+                    float ori_embd[4096 * count_soft_prompt];
+                    ggml_backend_tensor_get(lctx.inp_embd, ori_embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
                                             n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
+
+                    for(int i = 0; i < count_soft_prompt * 4096; ++i) {
+                        ori_embd[i] = ori_embd[i] + batch.embd[i];
+                    }
+                    //Skip the first token
+                    ggml_backend_tensor_set(lctx.inp_embd, ori_embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
+                                            n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
+//
+//                    //Skip the first token
+//                    ggml_backend_tensor_set(lctx.inp_embd, batch.embd, count_soft_prompt_offset * n_embd * ggml_element_size(lctx.inp_embd),
+//                                            n_tokens * n_embd * ggml_element_size(lctx.inp_embd));
                 }
             }
             else {

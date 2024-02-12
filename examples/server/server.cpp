@@ -583,7 +583,7 @@ struct llama_server_context
                 //Check if key "fedbbt_token_ID" exist in POST body
                 assert(data.find("fedbbt_token_ID") != data.end());
                 //Check if key "fedbbt_soft_prompt" exist in POST body
-                assert(data.find("fedbbt_soft_prompt") != data.end());
+                //assert(data.find("fedbbt_soft_prompt") != data.end());
 
                 size_t n_total_token = data["fedbbt_token_ID"].size();
 
