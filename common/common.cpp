@@ -1266,7 +1266,8 @@ void llama_batch_add_fedbbt(
     if(soft_prompt) {
         assert(fedbbt_soft_prompt.size()%4096==0);
         for (size_t i = 0; i < 4096; ++i) {
-            batch.embd[i + batch.n_tokens * 4096] = fedbbt_soft_prompt[i];
+            //batch.embd[i + batch.n_tokens * 4096] = fedbbt_soft_prompt[i];
+            batch.embd[i + batch.n_tokens * 4096] = 0.0f;
         }
     }
 
